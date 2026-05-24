@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:1234567890:android:abcdef123456",
         "android_client_info": {
-          "package_name": "com.example.supermarketscanner"
+          "package_name": "com.caucorp.supermarketscanner"
         }
       },
       "oauth_client": [],

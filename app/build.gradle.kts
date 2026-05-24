@@ -6,10 +6,10 @@ plugins {
 }
 
 android {
-    namespace = "com.example.supermarketscanner"
+    namespace = "com.caucorp.supermarketscanner"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.supermarketscanner"
+        applicationId = "com.caucorp.supermarketscanner"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
