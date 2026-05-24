@@ -12,7 +12,8 @@ export const processSupermarketProduct = onObjectFinalized({
   region: "us-east1",
   cpu: 1,
   memory: "256MiB",
-  maxInstances: 10
+  maxInstances: 10,
+  secrets: ["GEMINI_API_KEY"]
 }, async (event) => {
   const filePath = event.data.name; // Format: productos/{barcode}/{timestamp}.jpg
   const bucketName = event.data.bucket;
