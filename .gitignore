@@ -17,3 +17,7 @@ local.properties
 # Firebase functions
 functions/node_modules/
 functions/lib/
+
+# Env files
+functions/.env
+functions/.env.*
