@@ -40,6 +40,17 @@ android {
     }
 }
 
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
+                output.outputFileName = "SupermarketScanner-${variant.name}-${output.versionName.get()}.apk"
+            }
+        }
+    }
+}
+
+
 kotlin {
     jvmToolchain(17)
 }
