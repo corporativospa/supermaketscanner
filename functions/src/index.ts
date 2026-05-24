@@ -9,6 +9,7 @@ initializeApp();
 const db = getFirestore();
 
 export const processSupermarketProduct = onObjectFinalized({
+  region: "us-east1",
   cpu: 1,
   memory: "256MiB",
   maxInstances: 10
