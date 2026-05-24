@@ -33,9 +33,18 @@ class ProductRepository {
 
     suspend fun uploadProductImage(barcode: String, bitmap: Bitmap): String {
         return try {
+            // Optimize image size: limit maximum dimension to 1024px to save bandwidth/storage while keeping text sharp
+            val optimizedBitmap = resizeBitmap(bitmap, 1024)
+            
             val baos = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos)
+            // Compress as JPEG 80 (visual differences are imperceptible for AI OCR, but file size is significantly smaller than 90)
+            optimizedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
             val data = baos.toByteArray()
+            
+            // Recycle the scaled bitmap if a new one was created to free up memory
+            if (optimizedBitmap != bitmap) {
+                optimizedBitmap.recycle()
+            }
             
             val timestamp = System.currentTimeMillis()
             val storageRef = storage.reference.child("productos/$barcode/$timestamp.jpg")
@@ -45,6 +54,24 @@ class ProductRepository {
             e.printStackTrace()
             throw e
         }
+    }
+
+    private fun resizeBitmap(bitmap: Bitmap, maxDimension: Int): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= maxDimension && height <= maxDimension) return bitmap
+
+        val ratio = width.toFloat() / height.toFloat()
+        val newWidth: Int
+        val newHeight: Int
+        if (ratio > 1) {
+            newWidth = maxDimension
+            newHeight = (maxDimension / ratio).toInt()
+        } else {
+            newHeight = maxDimension
+            newWidth = (maxDimension * ratio).toInt()
+        }
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
     fun listenToProduct(barcode: String): Flow<Product?> = callbackFlow {
