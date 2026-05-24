@@ -111,7 +111,7 @@ export const processSupermarketProduct = onObjectFinalized({
   try {
     logger.info(`Invocando API de Gemini para el producto ${barcode}...`);
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // Use gemini-2.0-flash as specified
+      model: "gemini-2.5-flash", // Use gemini-2.5-flash for best price-performance
       contents: [
         ...imagesBase64,
         "Analiza estas imágenes de empaque y extrae marca, nombre y contenido."
