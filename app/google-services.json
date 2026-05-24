@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1234567890",
-    "project_id": "supermarket-scanner-poc-dummy",
-    "storage_bucket": "supermarket-scanner-poc-dummy.appspot.com"
+    "project_number": "798325151440",
+    "project_id": "supermarketscanner-6ba02",
+    "storage_bucket": "supermarketscanner-6ba02.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1234567890:android:abcdef123456",
+        "mobilesdk_app_id": "1:798325151440:android:5e61efb677c7701fb870d5",
         "android_client_info": {
           "package_name": "com.caucorp.supermarketscanner"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "dummy_api_key_for_compilation"
+          "current_key": "AIzaSyDo62Tbk3YM5c7k39Q2QA3pnR23YLBeEpU"
         }
       ],
       "services": {
