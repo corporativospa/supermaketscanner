@@ -10,6 +10,9 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,11 +29,16 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 @Composable
@@ -46,15 +55,23 @@ fun PhotoCaptureView(
     barcode: String,
     photos: List<Bitmap>,
     rightOverlayInset: androidx.compose.ui.unit.Dp = 0.dp,
+    queueTargetBoundsProvider: () -> Rect?,
     onPhotoCaptured: (Bitmap) -> Unit,
     onPhotoRemoved: (Int) -> Unit,
+    onPrepareUpload: () -> Unit,
     onConfirmUpload: () -> Unit,
     onBackToScan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val coroutineScope = rememberCoroutineScope()
+    var rootSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var rootWindowBounds by remember { mutableStateOf<Rect?>(null) }
+    var isAnimatingToQueue by remember { mutableStateOf(false) }
+    val queueAnimProgress = remember { Animatable(0f) }
     
     val imageCapture = remember {
         ImageCapture.Builder()
@@ -62,7 +79,13 @@ fun PhotoCaptureView(
             .build()
     }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onSizeChanged { rootSize = it }
+            .onGloballyPositioned { rootWindowBounds = it.boundsInWindow() }
+    ) {
         // Camera Preview
         AndroidView(
             factory = { ctx ->
@@ -108,7 +131,11 @@ fun PhotoCaptureView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = onBackToScan,
+                onClick = {
+                    if (!isAnimatingToQueue) {
+                        onBackToScan()
+                    }
+                },
                 colors = IconButtonDefaults.iconButtonColors(containerColor = Color.White.copy(alpha = 0.2f))
             ) {
                 Icon(
@@ -172,7 +199,7 @@ fun PhotoCaptureView(
                                     .align(Alignment.TopEnd)
                                     .size(20.dp)
                                     .background(Color.Red, CircleShape)
-                                    .clickable { onPhotoRemoved(index) },
+                                    .clickable(enabled = !isAnimatingToQueue) { onPhotoRemoved(index) },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -227,6 +254,7 @@ fun PhotoCaptureView(
                         .background(Color.White, CircleShape)
                         .clip(CircleShape)
                         .clickable {
+                            if (isAnimatingToQueue) return@clickable
                             val mainExecutor = ContextCompat.getMainExecutor(context)
                             imageCapture.takePicture(
                                 cameraExecutor,
@@ -250,8 +278,28 @@ fun PhotoCaptureView(
                 // Confirm & Upload Button (Active only if photos taken)
                 FloatingActionButton(
                     onClick = {
-                        if (photos.isNotEmpty()) {
-                            onConfirmUpload()
+                        if (photos.isNotEmpty() && !isAnimatingToQueue) {
+                            isAnimatingToQueue = true
+                            coroutineScope.launch {
+                                onPrepareUpload()
+                                kotlinx.coroutines.delay(40)
+                                var targetRect = queueTargetBoundsProvider()
+                                var retries = 0
+                                while (targetRect == null && retries < 8) {
+                                    kotlinx.coroutines.delay(20)
+                                    targetRect = queueTargetBoundsProvider()
+                                    retries++
+                                }
+
+                                queueAnimProgress.snapTo(0f)
+                                queueAnimProgress.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                                )
+                                onConfirmUpload()
+                                queueAnimProgress.snapTo(0f)
+                                isAnimatingToQueue = false
+                            }
                         }
                     },
                     containerColor = if (photos.isNotEmpty()) Color(0xFF2E7D32) else Color.Gray.copy(alpha = 0.5f),
@@ -265,6 +313,46 @@ fun PhotoCaptureView(
                     )
                 }
             }
+        }
+
+        if (isAnimatingToQueue && photos.isNotEmpty() && rootSize.width > 0 && rootSize.height > 0) {
+            val progress = queueAnimProgress.value
+            val startX = rootSize.width * 0.5f - with(density) { 36.dp.toPx() }
+            val startY = rootSize.height * 0.72f - with(density) { 36.dp.toPx() }
+            val targetRect = queueTargetBoundsProvider()
+            val rootBounds = rootWindowBounds
+            val fallbackX = rootSize.width - with(density) { (72.dp + 12.dp).toPx() }
+            val fallbackY = with(density) { 96.dp.toPx() }
+            val targetX = if (targetRect != null && rootBounds != null) {
+                targetRect.left - rootBounds.left
+            } else {
+                fallbackX
+            }
+            val targetY = if (targetRect != null && rootBounds != null) {
+                targetRect.top - rootBounds.top
+            } else {
+                fallbackY
+            }
+            val x = startX + (targetX - startX) * progress
+            val y = startY + (targetY - startY) * progress
+            val scale = 1f - (0.78f * progress)
+
+            Image(
+                bitmap = photos.first().asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(72.dp)
+                    .graphicsLayer {
+                        translationX = x
+                        translationY = y
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = 1f - (0.08f * progress)
+                    }
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            )
         }
     }
 }

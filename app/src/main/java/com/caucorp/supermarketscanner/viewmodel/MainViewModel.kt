@@ -86,12 +86,7 @@ class MainViewModel : ViewModel() {
     fun uploadPhotosAndStartProcessing(barcode: String, photos: List<Bitmap>) {
         if (photos.isEmpty()) return
 
-        upsertQueueItem(
-            barcode = barcode,
-            status = QueueStatus.UPLOADING,
-            message = "Subiendo imágenes a Storage...",
-            previewPhoto = photos.firstOrNull()
-        )
+        prepareQueueItemForAnimation(barcode, photos.firstOrNull())
         _currentScreen.value = AppScreen.Scanning
 
         queueJobs[barcode]?.cancel()
@@ -134,6 +129,15 @@ class MainViewModel : ViewModel() {
                 queueJobs.remove(barcode)
             }
         }
+    }
+
+    fun prepareQueueItemForAnimation(barcode: String, previewPhoto: Bitmap?) {
+        upsertQueueItem(
+            barcode = barcode,
+            status = QueueStatus.UPLOADING,
+            message = "Subiendo imágenes a Storage...",
+            previewPhoto = previewPhoto
+        )
     }
 
     fun onQueueItemSelected(barcode: String) {

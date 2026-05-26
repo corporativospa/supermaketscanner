@@ -20,7 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,7 @@ fun MainScreen(
     viewModel: MainViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val queueCardBoundsByBarcode = remember { mutableStateMapOf<String, Rect>() }
     
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -95,6 +99,7 @@ fun MainScreen(
                             barcode = screen.barcode,
                             photos = screen.photos,
                             rightOverlayInset = queueInset,
+                            queueTargetBoundsProvider = { queueCardBoundsByBarcode[screen.barcode] },
                             onPhotoCaptured = { bitmap ->
                                 viewModel.addCapturedPhoto(screen.barcode, bitmap)
                             },
@@ -103,6 +108,9 @@ fun MainScreen(
                             },
                             onConfirmUpload = {
                                 viewModel.uploadPhotosAndStartProcessing(screen.barcode, screen.photos)
+                            },
+                            onPrepareUpload = {
+                                viewModel.prepareQueueItemForAnimation(screen.barcode, screen.photos.firstOrNull())
                             },
                             onBackToScan = {
                                 viewModel.navigateToScanning()
@@ -148,6 +156,7 @@ fun MainScreen(
                     QueuePanel(
                         items = queueItems,
                         onItemClick = { barcode -> viewModel.onQueueItemSelected(barcode) },
+                        onItemPositioned = { barcode, rect -> queueCardBoundsByBarcode[barcode] = rect },
                         modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
@@ -199,6 +208,7 @@ fun MainScreen(
 private fun QueuePanel(
     items: List<QueueItem>,
     onItemClick: (String) -> Unit,
+    onItemPositioned: (String, Rect) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -212,7 +222,8 @@ private fun QueuePanel(
         items(items, key = { it.barcode }) { item ->
             QueueItemCard(
                 item = item,
-                onClick = { onItemClick(item.barcode) }
+                onClick = { onItemClick(item.barcode) },
+                onPositioned = { rect -> onItemPositioned(item.barcode, rect) }
             )
         }
     }
@@ -221,13 +232,17 @@ private fun QueuePanel(
 @Composable
 private fun QueueItemCard(
     item: QueueItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onPositioned: (Rect) -> Unit
 ) {
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
         modifier = Modifier.size(72.dp)
+            .onGloballyPositioned { coordinates ->
+                onPositioned(coordinates.boundsInWindow())
+            }
     ) {
         Box(
             modifier = Modifier
