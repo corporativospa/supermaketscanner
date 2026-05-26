@@ -45,6 +45,7 @@ import java.util.concurrent.Executors
 @Composable
 fun BarcodeScannerView(
     isChecking: Boolean,
+    rightOverlayInset: androidx.compose.ui.unit.Dp = 0.dp,
     onBarcodeDetected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -117,22 +118,22 @@ fun BarcodeScannerView(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(top = 64.dp, start = 24.dp, end = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(top = 64.dp, start = 24.dp, end = 24.dp + rightOverlayInset),
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = "Supermarket Scanner",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Start
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Apunta al código de barras del producto (EAN-13, EAN-8 o UPC-A)",
                 fontSize = 14.sp,
                 color = Color.White.copy(alpha = 0.8f),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Start
             )
         }
 

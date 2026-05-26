@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun ProcessingView(
     progressMessage: String?,
+    onHide: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -126,6 +127,13 @@ fun ProcessingView(
                     textAlign = TextAlign.Center,
                     lineHeight = 18.sp
                 )
+
+                if (onHide != null) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    OutlinedButton(onClick = onHide) {
+                        Text("Ocultar")
+                    }
+                }
             }
         }
     }

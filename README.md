@@ -1,6 +1,6 @@
 # Supermarket Inventory Scanner - POC (Prueba de Concepto)
 
-Este proyecto es una Prueba de Concepto (POC) para automatizar el inventario de supermercados utilizando una arquitectura server-side. Consiste en una aplicación nativa de Android acoplada a un backend de Firebase (Firestore, Storage y Cloud Functions en TypeScript) e integrada con la inteligencia artificial de Gemini (modelo `gemini-2.0-flash`) para estructurar información de productos a partir de fotos del empaque de forma asíncrona.
+Este proyecto es una Prueba de Concepto (POC) para automatizar el inventario de supermercados utilizando una arquitectura server-side. Consiste en una aplicación nativa de Android acoplada a un backend de Firebase (Firestore, Storage y Cloud Functions en TypeScript) e integrada con la inteligencia artificial de Gemini (modelo `gemini-2.5-flash`) para estructurar información de productos a partir de fotos del empaque de forma asíncrona.
 
 ---
 
@@ -58,7 +58,7 @@ Construido utilizando prácticas modernas de desarrollo de Android:
 Funciones de backend sin servidor (Serverless) configuradas en Firebase:
 - **Lenguaje/Entorno:** TypeScript en Node.js (Firebase Functions v2).
 - **Trigger:** Evento `onObjectFinalized` de Firebase Storage que detecta la subida completa de imágenes al directorio del producto.
-- **IA Generativa:** SDK Oficial de Google Gen AI (`@google/genai`) utilizando el modelo `gemini-2.0-flash`.
+- **IA Generativa:** SDK Oficial de Google Gen AI (`@google/genai`) utilizando el modelo `gemini-2.5-flash`.
 - **Esquema Estricto:** Uso del parámetro `responseSchema` de Gemini para obligar al modelo a retornar un JSON estructurado que se valida y parsea directamente en el backend para evitar deudas técnicas de parseo manual de texto.
 
 ---
@@ -71,11 +71,13 @@ SupermarketScanner/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/caucorp/supermarketscanner/
-│   │   │   │   ├── data/             # Repositorios y fuentes de datos
+│   │   │   │   ├── data/             # Fuentes de datos auxiliares
 │   │   │   │   ├── model/            # Modelos de datos (Product.kt)
 │   │   │   │   ├── theme/            # Configuración de Compose Theme (Material 3)
+│   │   │   │   ├── repository/       # Repositorio Firebase (Firestore + Storage)
 │   │   │   │   ├── ui/               # Vistas Compose (Scanner, Capture, Detail, etc.)
-│   │   │   │   └── viewmodel/        # Lógica de presentación y ViewModels
+│   │   │   │   │   └── main/         # Pantalla principal y su ViewModel
+│   │   │   │   └── viewmodel/        # Estado global de flujo de pantallas
 │   │   │   └── AndroidManifest.xml
 │   │   └── build.gradle.kts
 ├── functions/                        # Módulo del Backend (Firebase Cloud Functions)
@@ -179,3 +181,5 @@ const responseSchema = {
 ```
 
 Este esquema garantiza que la salida de la Cloud Function no requiere validaciones complejas de strings ni limpieza de bloques Markdown, insertando los datos de forma robusta e inmediata en la colección de Firestore.
+
+Nota: En la implementación actual (`functions/src/index.ts`) se invoca el modelo `gemini-2.5-flash` para optimizar la relación costo/rendimiento del procesamiento por lote.

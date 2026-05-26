@@ -5,11 +5,21 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -25,6 +35,8 @@ import com.caucorp.supermarketscanner.ui.ProductDetailView
 import com.caucorp.supermarketscanner.ui.ProcessingView
 import com.caucorp.supermarketscanner.viewmodel.AppScreen
 import com.caucorp.supermarketscanner.viewmodel.MainViewModel
+import com.caucorp.supermarketscanner.viewmodel.QueueItem
+import com.caucorp.supermarketscanner.viewmodel.QueueStatus
 
 @Composable
 fun MainScreen(
@@ -63,47 +75,80 @@ fun MainScreen(
             val screenState by viewModel.currentScreen.collectAsStateWithLifecycle()
             val isChecking by viewModel.isCheckingBarcode.collectAsStateWithLifecycle()
             val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
+            val queueItems by viewModel.queueItems.collectAsStateWithLifecycle()
 
-            when (val screen = screenState) {
-                is AppScreen.Scanning -> {
-                    BarcodeScannerView(
-                        isChecking = isChecking,
-                        onBarcodeDetected = { barcode ->
-                            viewModel.onBarcodeDetected(barcode)
-                        }
-                    )
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val screen = screenState) {
+                    is AppScreen.Scanning -> {
+                        val queueInset = if (queueItems.isNotEmpty()) 84.dp else 0.dp
+                        BarcodeScannerView(
+                            isChecking = isChecking,
+                            rightOverlayInset = queueInset,
+                            onBarcodeDetected = { barcode ->
+                                viewModel.onBarcodeDetected(barcode)
+                            }
+                        )
+                    }
+                    is AppScreen.CapturePhotos -> {
+                        val queueInset = if (queueItems.isNotEmpty()) 84.dp else 0.dp
+                        PhotoCaptureView(
+                            barcode = screen.barcode,
+                            photos = screen.photos,
+                            rightOverlayInset = queueInset,
+                            onPhotoCaptured = { bitmap ->
+                                viewModel.addCapturedPhoto(screen.barcode, bitmap)
+                            },
+                            onPhotoRemoved = { index ->
+                                viewModel.removeCapturedPhoto(screen.barcode, index)
+                            },
+                            onConfirmUpload = {
+                                viewModel.uploadPhotosAndStartProcessing(screen.barcode, screen.photos)
+                            },
+                            onBackToScan = {
+                                viewModel.navigateToScanning()
+                            }
+                        )
+                    }
+                    is AppScreen.ProcessingQueue -> {
+                        ProcessingView(
+                            progressMessage = uploadProgress,
+                            onHide = { viewModel.hideQueueOverlay() }
+                        )
+                    }
+                    is AppScreen.ProductDetail -> {
+                        val isReadyItem = queueItems.any { it.barcode == screen.barcode && it.status == QueueStatus.READY }
+                        ProductDetailView(
+                            product = screen.product,
+                            barcode = screen.barcode,
+                            fromSearch = screen.fromSearch,
+                            onBackToScan = {
+                                if (isReadyItem && !screen.fromSearch) {
+                                    viewModel.closeQueueReadyItem(screen.barcode)
+                                } else {
+                                    viewModel.navigateToScanning()
+                                }
+                            },
+                            actionButtonText = if (isReadyItem && !screen.fromSearch) "Cerrar" else "Escanear Siguiente",
+                            onClose = if (isReadyItem && !screen.fromSearch) {
+                                { viewModel.closeQueueReadyItem(screen.barcode) }
+                            } else {
+                                null
+                            },
+                            onHide = if (isReadyItem && !screen.fromSearch) {
+                                { viewModel.hideQueueOverlay() }
+                            } else {
+                                null
+                            }
+                        )
+                    }
                 }
-                is AppScreen.CapturePhotos -> {
-                    PhotoCaptureView(
-                        barcode = screen.barcode,
-                        photos = screen.photos,
-                        onPhotoCaptured = { bitmap ->
-                            viewModel.addCapturedPhoto(screen.barcode, bitmap)
-                        },
-                        onPhotoRemoved = { index ->
-                            viewModel.removeCapturedPhoto(screen.barcode, index)
-                        },
-                        onConfirmUpload = {
-                            viewModel.uploadPhotosAndStartProcessing(screen.barcode, screen.photos)
-                        },
-                        onBackToScan = {
-                            viewModel.navigateToScanning()
-                        }
-                    )
-                }
-                is AppScreen.ProcessingQueue -> {
-                    ProcessingView(
-                        progressMessage = uploadProgress
-                    )
-                }
-                is AppScreen.ProductDetail -> {
-                    ProductDetailView(
-                        product = screen.product,
-                        barcode = screen.barcode,
-                        fromSearch = screen.fromSearch,
-                        onBackToScan = {
-                            viewModel.navigateToScanning()
-                        }
+
+                val showQueuePanel = screenState is AppScreen.Scanning || screenState is AppScreen.CapturePhotos
+                if (showQueuePanel && queueItems.isNotEmpty()) {
+                    QueuePanel(
+                        items = queueItems,
+                        onItemClick = { barcode -> viewModel.onQueueItemSelected(barcode) },
+                        modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
             }
@@ -144,6 +189,85 @@ fun MainScreen(
                             Text("Otorgar Permiso")
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueuePanel(
+    items: List<QueueItem>,
+    onItemClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .padding(top = 96.dp, end = 12.dp)
+            .width(72.dp)
+            .fillMaxHeight(0.75f),
+        contentPadding = PaddingValues(0.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(items, key = { it.barcode }) { item ->
+            QueueItemCard(
+                item = item,
+                onClick = { onItemClick(item.barcode) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueItemCard(
+    item: QueueItem,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+        modifier = Modifier.size(72.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            if (item.previewPhoto != null) {
+                Image(
+                    bitmap = item.previewPhoto.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.42f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {}
+
+            when (item.status) {
+                QueueStatus.READY -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF8BE28B))
+                QueueStatus.ERROR -> Icon(Icons.Default.Error, contentDescription = null, tint = Color(0xFFFF8A80))
+                else -> {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
+            }
                 }
             }
         }

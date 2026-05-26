@@ -45,6 +45,7 @@ import java.util.concurrent.Executors
 fun PhotoCaptureView(
     barcode: String,
     photos: List<Bitmap>,
+    rightOverlayInset: androidx.compose.ui.unit.Dp = 0.dp,
     onPhotoCaptured: (Bitmap) -> Unit,
     onPhotoRemoved: (Int) -> Unit,
     onConfirmUpload: () -> Unit,
@@ -103,7 +104,7 @@ fun PhotoCaptureView(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.6f))
-                .padding(top = 48.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+                .padding(top = 48.dp, bottom = 16.dp, start = 16.dp, end = 16.dp + rightOverlayInset),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
@@ -137,6 +138,8 @@ fun PhotoCaptureView(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp)
                 .background(Color.Black.copy(alpha = 0.75f))
                 .padding(vertical = 24.dp, horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -188,8 +191,10 @@ fun PhotoCaptureView(
                     text = "Toma una o más fotos del empaque frontal del producto",
                     fontSize = 12.sp,
                     color = Color.White.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = rightOverlayInset, bottom = 16.dp)
                 )
             }
 
@@ -200,11 +205,17 @@ fun PhotoCaptureView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Cancel/Reset Button
-                TextButton(
+                FloatingActionButton(
                     onClick = onBackToScan,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    containerColor = Color(0xFFD32F2F),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier.size(56.dp)
                 ) {
-                    Text("Cancelar")
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancelar"
+                    )
                 }
 
                 // Shutter Button (Pulsing Effect)
@@ -243,7 +254,7 @@ fun PhotoCaptureView(
                             onConfirmUpload()
                         }
                     },
-                    containerColor = if (photos.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f),
+                    containerColor = if (photos.isNotEmpty()) Color(0xFF2E7D32) else Color.Gray.copy(alpha = 0.5f),
                     contentColor = Color.White,
                     shape = CircleShape,
                     modifier = Modifier.size(56.dp)
