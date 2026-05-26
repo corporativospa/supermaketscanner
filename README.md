@@ -183,3 +183,54 @@ const responseSchema = {
 Este esquema garantiza que la salida de la Cloud Function no requiere validaciones complejas de strings ni limpieza de bloques Markdown, insertando los datos de forma robusta e inmediata en la colección de Firestore.
 
 Nota: En la implementación actual (`functions/src/index.ts`) se invoca el modelo `gemini-2.5-flash` para optimizar la relación costo/rendimiento del procesamiento por lote.
+
+---
+
+## 7. UX Actual (v2): Flujo No Bloqueante con Cola Lateral
+
+En la implementación actual, el flujo de captura dejó de ser bloqueante.
+Luego de confirmar fotos, la aplicación vuelve inmediatamente al escáner y el procesamiento en backend continúa de forma asíncrona, permitiendo escanear nuevos productos en paralelo.
+
+### 7.1 Flujo de Interacción Actual
+
+1. El usuario escanea un código de barras.
+2. Si el producto existe en Firestore, se muestra su detalle inmediatamente.
+3. Si el producto no existe, se abre la vista de captura fotográfica.
+4. Al presionar **Aceptar** (con al menos una foto):
+   - se crea/actualiza el item en cola,
+   - se ejecuta una transición visual de miniatura hacia el card de cola,
+   - y la app vuelve al escáner sin esperar la respuesta de Gemini.
+5. Cloud Functions procesa imágenes, consulta Gemini y actualiza Firestore.
+6. La cola lateral refleja estados en tiempo real hasta completar el producto.
+
+### 7.2 Cola Lateral (Parte Superior Derecha)
+
+- La cola se muestra como una lista vertical compacta en la zona superior derecha.
+- Cada item usa la primera foto capturada como miniatura.
+- Estados visuales:
+  - **Loading/Processing:** indicador de carga.
+  - **Ready:** check de completado.
+  - **Error:** indicador de error.
+- La lista tiene scroll interno y está diseñada para no bloquear la operación del escáner.
+
+### 7.3 Comportamiento al Seleccionar un Item de Cola
+
+- Si el item está en **loading/processing**:
+  - se abre la vista de procesamiento con botón **Ocultar**,
+  - si la respuesta llega mientras está abierta, transiciona automáticamente a detalle.
+- Si el item está en **ready**:
+  - se abre la vista de detalle con dos acciones:
+    - **Ocultar:** vuelve a la vista anterior y mantiene el item en cola.
+    - **Cerrar:** vuelve a la vista anterior y elimina el item de la cola.
+
+### 7.4 Ajustes de UI en Captura
+
+- **Cancelar:** botón circular rojo con ícono `X`.
+- **Aceptar:** botón circular con check:
+  - verde cuando hay al menos una foto,
+  - gris cuando no hay fotos.
+- Se usa `navigationBarsPadding()` para evitar superposición con la barra de navegación del sistema en dispositivos como Xiaomi.
+
+### 7.5 Transición Visual de Encolado (Pixel-Perfect)
+
+Al confirmar fotos, la primera miniatura se anima (escala + desplazamiento) hacia el card correspondiente del producto recién agregado en la cola, usando coordenadas reales de layout para alineación visual precisa.
