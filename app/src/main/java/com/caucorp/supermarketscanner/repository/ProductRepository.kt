@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.Date
 import java.io.ByteArrayOutputStream
 
 class ProductRepository {
@@ -96,5 +97,15 @@ class ProductRepository {
             }
         }
         awaitClose { listener.remove() }
+    }
+
+    suspend fun updateProductField(barcode: String, field: String, value: String) {
+        firestore.collection("productos").document(barcode)
+            .update(
+                mapOf(
+                    field to value,
+                    "updatedAt" to Date()
+                )
+            ).await()
     }
 }

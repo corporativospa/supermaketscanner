@@ -35,6 +35,15 @@ data class QueueItem(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+enum class EditableField { MARCA, NOMBRE, CONTENIDO }
+
+data class DetailEditState(
+    val editingField: EditableField? = null,
+    val draftValue: String = "",
+    val isSaving: Boolean = false,
+    val error: String? = null
+)
+
 class MainViewModel : ViewModel() {
     private val repository = ProductRepository()
     private val queueJobs = mutableMapOf<String, Job>()
@@ -53,6 +62,9 @@ class MainViewModel : ViewModel() {
     private val _queueItems = MutableStateFlow<List<QueueItem>>(emptyList())
     val queueItems: StateFlow<List<QueueItem>> = _queueItems.asStateFlow()
 
+    private val _detailEditState = MutableStateFlow(DetailEditState())
+    val detailEditState: StateFlow<DetailEditState> = _detailEditState.asStateFlow()
+
     fun onBarcodeDetected(barcode: String) {
         if (_isCheckingBarcode.value) return
         _isCheckingBarcode.value = true
@@ -61,6 +73,7 @@ class MainViewModel : ViewModel() {
             val product = repository.getProduct(barcode)
             _isCheckingBarcode.value = false
             if (product != null) {
+                _detailEditState.value = DetailEditState()
                 _currentScreen.value = AppScreen.ProductDetail(product, barcode, fromSearch = true)
             } else {
                 _currentScreen.value = AppScreen.CapturePhotos(barcode)
@@ -146,6 +159,7 @@ class MainViewModel : ViewModel() {
         activeQueueBarcode = barcode
         when {
             item.status == QueueStatus.READY && item.product != null -> {
+                _detailEditState.value = DetailEditState()
                 _currentScreen.value = AppScreen.ProductDetail(item.product, item.barcode, fromSearch = false)
             }
             else -> {
@@ -156,11 +170,13 @@ class MainViewModel : ViewModel() {
     }
 
     fun hideQueueOverlay() {
+        if (_detailEditState.value.editingField != null || _detailEditState.value.isSaving) return
         activeQueueBarcode = null
         _currentScreen.value = previousScreenBeforeQueueOpen
     }
 
     fun closeQueueReadyItem(barcode: String) {
+        if (_detailEditState.value.editingField != null || _detailEditState.value.isSaving) return
         activeQueueBarcode = null
         removeQueueItem(barcode)
         _currentScreen.value = previousScreenBeforeQueueOpen
@@ -171,9 +187,79 @@ class MainViewModel : ViewModel() {
     }
 
     fun navigateToScanning() {
+        if (_detailEditState.value.editingField != null || _detailEditState.value.isSaving) return
         _currentScreen.value = AppScreen.Scanning
         _isCheckingBarcode.value = false
         _uploadProgress.value = null
+    }
+
+    fun startEditingField(field: EditableField, currentValue: String) {
+        if (_detailEditState.value.isSaving) return
+        _detailEditState.value = DetailEditState(editingField = field, draftValue = currentValue)
+    }
+
+    fun updateEditDraft(value: String) {
+        val state = _detailEditState.value
+        if (state.editingField == null || state.isSaving) return
+        _detailEditState.value = state.copy(draftValue = value, error = null)
+    }
+
+    fun cancelEditingField() {
+        if (_detailEditState.value.isSaving) return
+        _detailEditState.value = DetailEditState()
+    }
+
+    fun saveEditingField(barcode: String) {
+        val state = _detailEditState.value
+        val field = state.editingField ?: return
+        val value = state.draftValue.trim()
+        if (value.isEmpty()) {
+            _detailEditState.value = state.copy(error = "El valor no puede estar vacío")
+            return
+        }
+
+        _detailEditState.value = state.copy(isSaving = true, error = null)
+        viewModelScope.launch {
+            try {
+                val firestoreField = when (field) {
+                    EditableField.MARCA -> "marca"
+                    EditableField.NOMBRE -> "nombre"
+                    EditableField.CONTENIDO -> "contenido"
+                }
+                repository.updateProductField(barcode, firestoreField, value)
+                applyFieldValueLocally(barcode, field, value)
+                _detailEditState.value = DetailEditState()
+            } catch (e: Exception) {
+                _detailEditState.value = _detailEditState.value.copy(
+                    isSaving = false,
+                    error = e.message ?: "No se pudo guardar"
+                )
+            }
+        }
+    }
+
+    private fun applyFieldValueLocally(barcode: String, field: EditableField, value: String) {
+        val current = _currentScreen.value
+        if (current is AppScreen.ProductDetail && current.barcode == barcode) {
+            val updatedProduct = when (field) {
+                EditableField.MARCA -> current.product.copy(marca = value)
+                EditableField.NOMBRE -> current.product.copy(nombre = value)
+                EditableField.CONTENIDO -> current.product.copy(contenido = value)
+            }
+            _currentScreen.value = current.copy(product = updatedProduct)
+        }
+
+        _queueItems.value = _queueItems.value.map { item ->
+            if (item.barcode != barcode || item.product == null) item
+            else {
+                val updatedProduct = when (field) {
+                    EditableField.MARCA -> item.product.copy(marca = value)
+                    EditableField.NOMBRE -> item.product.copy(nombre = value)
+                    EditableField.CONTENIDO -> item.product.copy(contenido = value)
+                }
+                item.copy(product = updatedProduct)
+            }
+        }
     }
 
     private fun upsertQueueItem(

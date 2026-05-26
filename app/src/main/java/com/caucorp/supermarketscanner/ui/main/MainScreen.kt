@@ -80,6 +80,7 @@ fun MainScreen(
             val isChecking by viewModel.isCheckingBarcode.collectAsStateWithLifecycle()
             val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
             val queueItems by viewModel.queueItems.collectAsStateWithLifecycle()
+            val detailEditState by viewModel.detailEditState.collectAsStateWithLifecycle()
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when (val screen = screenState) {
@@ -146,6 +147,22 @@ fun MainScreen(
                                 { viewModel.hideQueueOverlay() }
                             } else {
                                 null
+                            },
+                            editingField = detailEditState.editingField,
+                            editDraftValue = detailEditState.draftValue,
+                            isSavingField = detailEditState.isSaving,
+                            editError = detailEditState.error,
+                            onStartEditField = { field, currentValue ->
+                                viewModel.startEditingField(field, currentValue)
+                            },
+                            onEditDraftChange = { value ->
+                                viewModel.updateEditDraft(value)
+                            },
+                            onSaveEditField = {
+                                viewModel.saveEditingField(screen.barcode)
+                            },
+                            onCancelEditField = {
+                                viewModel.cancelEditingField()
                             }
                         )
                     }

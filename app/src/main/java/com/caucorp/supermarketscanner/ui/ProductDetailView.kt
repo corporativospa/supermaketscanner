@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.caucorp.supermarketscanner.model.Product
+import com.caucorp.supermarketscanner.viewmodel.EditableField
 
 @Composable
 fun ProductDetailView(
@@ -29,6 +32,14 @@ fun ProductDetailView(
     actionButtonText: String = "Escanear Siguiente",
     onClose: (() -> Unit)? = null,
     onHide: (() -> Unit)? = null,
+    editingField: EditableField? = null,
+    editDraftValue: String = "",
+    isSavingField: Boolean = false,
+    editError: String? = null,
+    onStartEditField: (EditableField, String) -> Unit = { _, _ -> },
+    onEditDraftChange: (String) -> Unit = {},
+    onSaveEditField: () -> Unit = {},
+    onCancelEditField: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -117,13 +128,58 @@ fun ProductDetailView(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Details Area
-                DetailRow(label = "MARCA", value = product.marca)
+                EditableDetailRow(
+                    label = "MARCA",
+                    value = product.marca,
+                    field = EditableField.MARCA,
+                    editingField = editingField,
+                    editDraftValue = editDraftValue,
+                    isSavingField = isSavingField,
+                    onStartEditField = onStartEditField,
+                    onEditDraftChange = onEditDraftChange,
+                    onSaveEditField = onSaveEditField,
+                    onCancelEditField = onCancelEditField
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                DetailRow(label = "NOMBRE DEL PRODUCTO", value = product.nombre)
+                EditableDetailRow(
+                    label = "NOMBRE DEL PRODUCTO",
+                    value = product.nombre,
+                    field = EditableField.NOMBRE,
+                    editingField = editingField,
+                    editDraftValue = editDraftValue,
+                    isSavingField = isSavingField,
+                    onStartEditField = onStartEditField,
+                    onEditDraftChange = onEditDraftChange,
+                    onSaveEditField = onSaveEditField,
+                    onCancelEditField = onCancelEditField
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                DetailRow(label = "CONTENIDO / NETO", value = product.contenido)
+                EditableDetailRow(
+                    label = "CONTENIDO / NETO",
+                    value = product.contenido,
+                    field = EditableField.CONTENIDO,
+                    editingField = editingField,
+                    editDraftValue = editDraftValue,
+                    isSavingField = isSavingField,
+                    onStartEditField = onStartEditField,
+                    onEditDraftChange = onEditDraftChange,
+                    onSaveEditField = onSaveEditField,
+                    onCancelEditField = onCancelEditField
+                )
+
+                if (!editError.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = editError,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(36.dp))
+
+                val detailActionsEnabled = editingField == null && !isSavingField
 
                 if (onClose != null && onHide != null) {
                     Row(
@@ -132,6 +188,7 @@ fun ProductDetailView(
                     ) {
                         OutlinedButton(
                             onClick = onHide,
+                            enabled = detailActionsEnabled,
                             modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
@@ -143,6 +200,7 @@ fun ProductDetailView(
                         }
                         Button(
                             onClick = onClose,
+                            enabled = detailActionsEnabled,
                             modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -157,6 +215,7 @@ fun ProductDetailView(
                 } else {
                     Button(
                         onClick = onBackToScan,
+                        enabled = detailActionsEnabled,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -179,24 +238,75 @@ fun ProductDetailView(
 }
 
 @Composable
-fun DetailRow(label: String, value: String) {
+fun EditableDetailRow(
+    label: String,
+    value: String,
+    field: EditableField,
+    editingField: EditableField?,
+    editDraftValue: String,
+    isSavingField: Boolean,
+    onStartEditField: (EditableField, String) -> Unit,
+    onEditDraftChange: (String) -> Unit,
+    onSaveEditField: () -> Unit,
+    onCancelEditField: () -> Unit
+) {
+    val isEditingThisField = editingField == field
+    val canStartEditing = editingField == null && !isSavingField
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
     ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 1.2.sp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.2.sp,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (isEditingThisField) {
+                IconButton(onClick = onSaveEditField, enabled = !isSavingField) {
+                    if (isSavingField) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.CheckCircle, contentDescription = "Guardar campo")
+                    }
+                }
+                IconButton(onClick = onCancelEditField, enabled = !isSavingField) {
+                    Icon(Icons.Default.Close, contentDescription = "Cancelar edición")
+                }
+            } else {
+                IconButton(
+                    onClick = { onStartEditField(field, value) },
+                    enabled = canStartEditing
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Editar campo")
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value.ifEmpty { "No especificado" },
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        if (isEditingThisField) {
+            OutlinedTextField(
+                value = editDraftValue,
+                onValueChange = onEditDraftChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = !isSavingField
+            )
+        } else {
+            Text(
+                text = value.ifEmpty { "No especificado" },
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
